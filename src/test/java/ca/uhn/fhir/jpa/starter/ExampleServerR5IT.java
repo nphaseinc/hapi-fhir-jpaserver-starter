@@ -36,7 +36,8 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
   {
      "spring.batch.job.enabled=false",
      "spring.datasource.url=jdbc:h2:mem:dbr5",
-     "hapi.fhir.fhir_version=r5",
+	  "spring.datasource.driverClassName=org.h2.Driver",
+	  "hapi.fhir.fhir_version=r5",
      "hapi.fhir.subscription.websocket_enabled=true",
 	  "hapi.fhir.subscription.websocket_enabled=true",
 	  "spring.main.allow-bean-definition-overriding=true"

@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <title th:include="window-title :: home"/>
+    <th:block th:include="tmpl-head :: head"/>
+    <script th:include="tmpl-buttonclick-handler :: handler"/>
+</head>
+
+<script type="application/javascript">
+
+    function getCondition(url, page) {
+        get(url, function (resp) {
+            const e = resp.entry;
+            let len = e && e.length ? e.length : 0
+            var pageFullyIterated = false;
+            for (let i = 0; i < len; i++) {
+                if (page.data.length < 30) {
+                    const code = e[i].resource.code.coding[0].code;
+                    const display = e[i].resource.code.coding[0].display;
+                    var last = page.data.length === 0 ? null : page.data[page.data.length - 1];
+                    if (!last || last.code !== code) {
+                        page.data[page.data.length] = {"code": code, "display": display, "count": 1};
+                    } else {
+                        last.count = last.count + 1
+                    }
+                } else {
+                    pageFullyIterated = (i === len - 1)
+                    break;
+                }
+                if (i === len - 1) pageFullyIterated = true;
+            }
+            page.next = "";
+            if (resp.link) {
+                if (resp.link[1] && resp.link[1].url) {
+                    page.next = resp.link[1].url
+                    if (resp.link[1].url === resp.link[0].url)
+                        page.next = null
+                }
+            }
+
+            if (!pageFullyIterated) {
+                page.next = url;
+            }
+            if (page.data.length < 30 && page.next)
+                getCondition(page.next, page)
+            else {
+                conditionListRender(page)
+            }
+        })
+    }
+
+    function recursiveCondition(self) {
+        if (document.getElementById("moreButton")) {
+            document.getElementById("moreButton").style = "pointer-events: none;color: gray"
+        }
+        document.getElementById("LoadingDiv").innerHTML = "Loading..."
+        var page = {
+            "data": [],
+            "next": null,
+            "self": self
+        }
+        getCondition(self, page)
+    }
+
+    function conditionListRender(page) {
+        let len = page && page.data.length ? page.data.length : 0
+        for (let i = 0; i < len; i++) {
+            const code = page.data[i].code;
+            const display = page.data[i].display;
+            const count = page.data[i].count;
+            let url = rootPath() + "/fhir/Condition?_pretty=true&code=" + code
+            const link = "<a href=\"javascript:personList('" + url + "', '" + display + "')\">Details</a>";
+            let tr = document.createElement("tr");
+            document.getElementById("conditionListTab").appendChild(tr);
+            tr.innerHTML = "<tr><td>" + display + "</td><td>" + count + "</td><td>" + link + "</td></tr>"
+        }
+        let nextStyle = "style=\"pointer-events: none;color: gray\"";
+        let next = "";
+        if (page.next) {
+            nextStyle = "";
+            next = page.next
+        }
+        var pageNext = next ? "\"" + next + "\"" : null
+        if (document.getElementById("conditionListTab").getElementsByTagName("tr").length === 0) {
+            document.getElementById("conditionListLoading").innerHTML = ""
+            document.getElementById("conditionListLoading").innerHTML = "<div style='color: #CCCCCC'>No records</div>"
+        } else {
+            document.getElementById("conditionListLoading").innerHTML = "<a id='moreButton' " + nextStyle + " href='javascript:recursiveCondition(" + pageNext + ")'>more >>>></a>"
+        }
+        document.getElementById("LoadingDiv").innerHTML = ""
+    }
+
+    function changeForm() {
+        let h = document.location.href;
+        if (h.indexOf("custom=summary") > 0) {
+            let html = "<h3>Summary of Diseases</h3><table id='conditionListTab' cellpadding='3' cellspacing='3'></table>";
+            $("#containerDiv").html(html + '<div id="LoadingDiv"></div><div id="conditionListLoading"></div>');
+            recursiveCondition(rootPath() + "/fhir/Condition?_sort=code&_count=100");
+        }
+    }
+
+    function rootPath() {
+        var url = new URL(document.location.href);
+        var p = url.pathname
+        if (p === "/home") p = "";
+        var ind = p.indexOf("/home")
+        if (ind > 1) {
+            p = p.substring(0, ind);
+        }
+        return url.origin + p;
+    }
+
+    function personList(url, display) {
+        get(url, function (resp) {
+            const e = resp.entry;
+            let html = "<h3>List of Patients <span style='text-decoration: underline'>" + display + "</span></h3>";
+            html += "<div><a href='javascript:closeDetails()'>&#8592; Back</a></div><br><table>";
+            let len = e && e.length ? e.length : 0
+            if (len > 0) {
+                for (let i = 0; i < len; i++) {
+                    const reference = e[i].resource.subject ? e[i].resource.subject.reference : e[i].resource.patient.reference;
+                    html += "<tr><td>" + reference + "</td></tr>"
+                }
+                let next = "";
+                let prev = "";
+                let nextStyle = "style=\"pointer-events: none;color: gray\"";
+                let prevStyle = "style=\"pointer-events: none;color: gray\"";
+                if (resp.link) {
+                    if (resp.link[1] && resp.link[1].url) {
+                        nextStyle = "";
+                        next = resp.link[1].url
+                    }
+                    if (resp.link[2] && resp.link[2].url) {
+                        prevStyle = "";
+                        prev = resp.link[2].url
+                    }
+                }
+                html += "<tr><td><a " + prevStyle + " href='javascript:personList(\"" + prev + "\", \"" + display + "\" )'><<<< previous</a>&nbsp;&nbsp;&nbsp;" +
+                    "<a " + nextStyle + " href='javascript:personList(\"" + next + "\", \"" + display + "\")'>next >>>></a></td></tr></table>"
+            } else {
+                html += "<tr><td style='color: #CCCCCC'>No records</td></tr></table>"
+            }
+            $('#containerDiv').css('display', 'none')
+            document.getElementById("detailsDiv").innerHTML = html
+            document.getElementById("detailsDiv").scrollIntoView();
+        })
+    }
+
+    function closeDetails() {
+        $('#containerDiv').css('display', 'block')
+        document.getElementById("detailsDiv").innerHTML = ""
+    }
+
+    function getSearchParams(url, k) {
+        const p = {};
+        url.replace(/[?&]+([^=&]+)=([^&]*)/gi, function (s, k, v) {
+            p[k] = v
+        })
+        return k ? p[k] : p;
+    }
+
+    function get(url, successFunc, failFunc) {
+        const settings = {
+            "async": true,
+            "crossDomain": true,
+            "url": url,
+            "method": "GET",
+            "headers": {
+                "content-type": "application/fhir+json"
+            }
+        };
+        let req = $.ajax(settings);
+        req.done(function (response) {
+            if (successFunc)
+                successFunc(response)
+        });
+        req.fail(function (response) {
+            if (failFunc)
+                failFunc(response)
+        });
+    }
+
+</script>
+<body onload="changeForm()">
+<form action="" method="get" id="outerForm">
+    <input type="hidden" id="serverId" name="serverId" th:value="${serverId}"></input>
+    <input th:if="${_csrf} != null" type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+
+    <div th:replace="tmpl-navbar-top :: top"></div>
+
+    <div class="container-fluid">
+        <div class="row">
+
+            <div th:replace="tmpl-navbar-left :: left"></div>
+
+            <div class="col-sm-9 col-sm-offset-3 col-md-9 col-md-offset-3 main">
+
+                <div th:replace="tmpl-banner :: banner"></div>
+
+                <!-- ********************************************************** -->
+                <!-- ** Default Home                                         ** -->
+                <!-- ********************************************************** -->
+
+                <div id="containerDiv">
+                    <div th:replace="tmpl-home-welcome :: banner"></div>
+
+                    <table class="table table-bordered table-striped" th:if="${resourceName.empty}">
+                        <colgroup>
+                            <col class="col-xs-1"/>
+                            <col class="col-xs-7"/>
+                        </colgroup>
+                        <tbody>
+                        <tr th:if="${!#strings.isEmpty(conf.implementation.description)}">
+                            <td>Server</td>
+                            <td th:utext="'' + ${conf.implementation.description}">HAPI Restful Server</td>
+                        </tr>
+                        <tr th:if="${!#strings.isEmpty(conf.software.name)} or ${!#strings.isEmpty(conf.software.version)}">
+                            <td>Software</td>
+                            <td>
+                                <th:block th:utext="'' + ${conf.software.name}"/>
+                                -
+                                <th:block th:utext="'' + ${conf.software.version}"/>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>FHIR Base</td>
+                            <td>
+                                <a th:href="${base}" th:text="${base}"></a>
+                            </td>
+                        </tr>
+                        </tbody>
+                    </table>
+
+                    <!-- ************************************************ -->
+                    <!-- ** Server Actions (no resource selected)      ** -->
+                    <!-- ************************************************ -->
+
+                    <div class="panel panel-default" th:if="${resourceName.empty}">
+                        <div class="panel-heading">
+                            <h3 class="panel-title">Server Actions</h3>
+                        </div>
+                        <div class="panel-body">
+                            <div class="container-fluid">
+
+                                <!-- Conformance -->
+
+                                <div class="row">
+                                    <div class="col-12">
+                                        Retrieve the server's <b>conformance</b> statement.
+                                    </div>
+                                </div>
+                                <div class="row">
+                                    <div class="col-sm-3 form-group">
+                                        <a type="button" id="fetch-conformance-btn"
+                                           class="btn btn-primary btn-block">
+                                            <i class="far fa-dot-circle"></i>
+                                            Conformance
+                                        </a>
+                                        <script type="text/javascript">
+                                            $('#fetch-conformance-btn').click(
+                                                function () {
+                                                    handleActionButtonClick($(this));
+                                                    $("#outerForm").attr("action", "conformance").submit();
+                                                });
+                                        </script>
+                                    </div>
+                                </div>
+
+                                <!-- Server History -->
+
+                                <br clear="all"/>
+                                <div class="row">
+                                    <div class="col-12">
+                                        Retrieve the update <b>history</b> across all resource types on
+                                        the server.
+                                    </div>
+                                </div>
+                                <div class="row top-buffer">
+                                    <div class="col-sm-3">
+                                        <button type="button" id="server-history-btn" class="btn btn-primary btn-block">
+                                            <i class="far fa-calendar-alt"></i>
+                                            History
+                                        </button>
+                                    </div>
+                                    <div class='col-sm-5'>
+                                        <div class="form-group">
+                                            <div class='input-group date' id='server-history-datetime'
+                                                 data-date-format="YYYY-MM-DDTHH:mm:ss">
+                                                <div class="input-group-prepend">
+									   <span class="input-group-text">
+												Since
+									   </span>
+                                                </div>
+                                                <input type='text' class="form-control" id="server-history-since"/>
+                                                <div class="input-group-append input-group-addon">
+                                                    <!-- input-group-addon is from Bootstrap3 but the time picker needs it there -->
+                                                    <span class="input-group-text">
+												   <i class="far fa-calendar-alt"></i>
+									   </span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class='col-sm-3'>
+                                        <div class="form-group">
+                                            <div class='input-group'>
+                                                <div class="input-group-prepend">
+									   <span class="input-group-text">
+												   Limit #
+									   </span>
+                                                </div>
+                                                <input type="text" class="form-control" id="server-history-limit"
+                                                       placeholder="(opt)"/>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <script type="text/javascript">
+                                        $(function () {
+                                            $('#server-history-datetime').datetimepicker({
+                                                sideBySide: true,
+                                                keepInvalid: true,
+                                                format: 'YYYY-MM-DDTHH:mm:ssZ'
+                                            });
+                                        });
+                                        $('#server-history-btn').click(
+                                            function () {
+                                                const btn = $(this);
+                                                handleActionButtonClick($(this));
+                                                const limit = $('#server-history-limit').val();
+                                                if (limit != null) btn.append($('<input />', {
+                                                    type: 'hidden',
+                                                    name: 'limit',
+                                                    value: limit
+                                                }));
+                                                const since = $('#server-history-since').val();
+                                                if (since != null) btn.append($('<input />', {
+                                                    type: 'hidden',
+                                                    name: 'since',
+                                                    value: since
+                                                }));
+                                                $("#outerForm").attr("action", "history-server").submit();
+                                            });
+                                    </script>
+
+                                </div>
+
+                                <!-- Transaction -->
+
+                                <br clear="all"/>
+                                <div class="row">
+                                    <div class="col-12">
+                                        Post a bundle containing multiple resources to the server and
+                                        store all resources within a single atomic transaction.
+                                    </div>
+                                </div>
+                                <div class="row">
+                                    <div class="col-sm-3">
+                                        <button type="button" id="transaction-btn" class="btn btn-primary btn-block">
+                                            <i class="fas fa-file-archive"></i>
+                                            Transaction
+                                        </button>
+                                    </div>
+                                    <div class='col-sm-9'>
+                                        <div class="form-group">
+                                            <div class='input-group'>
+                                                <div class="input-group-prepend">
+									   <span class="input-group-text">
+												   Bundle
+												   <span class="loadingStar">*</span>
+									   </span>
+                                                </div>
+                                                <textarea class="form-control" id="transaction-body"
+                                                          style="white-space: nowrap; overflow: auto;"
+                                                          placeholder="(place transaction bundle body here)" rows="1"><th:block th:if="${transactionBundle} != null" th:text="${transactionBundle}"/></textarea>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <script type="text/javascript">
+                                        const textAreaChanger = function () {
+                                            createBodyOriginalHeight = $('#transaction-body').height();
+                                            $('#transaction-body').animate({height: "200px"}, 500);
+                                        };
+                                        $('#transaction-body').focus(textAreaChanger);
+                                        $('#transaction-btn').click(
+                                            function () {
+                                                const btn = $(this);
+                                                handleActionButtonClick($(this));
+                                                const id = $('#transaction-id').val();
+                                                if (id != null) btn.append($('<input />', {
+                                                    type: 'hidden',
+                                                    name: 'resource-create-id',
+                                                    value: id
+                                                }));
+                                                const body = $('#transaction-body').val();
+                                                btn.append($('<input />', {
+                                                    type: 'hidden',
+                                                    name: 'transactionBody',
+                                                    value: body
+                                                }));
+                                                $("#outerForm").attr("method", "post");
+                                                $("#outerForm").attr("action", "transaction").submit();
+                                            });
+                                        $(document).ready(function () {
+                                        });
+                                    </script>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div id="detailsDiv"></div>
+            </div>
+        </div>
+    </div>
+</form>
+
+<div th:replace="tmpl-footer :: footer"></div>
+</body>
+</html>
