@@ -4,6 +4,7 @@ import ca.uhn.fhir.jpa.starter.custom.RCCAuthenticationProvider;
 import ca.uhn.fhir.to.FhirTesterMvcConfig;
 import ca.uhn.fhir.to.TesterConfig;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
@@ -73,6 +74,8 @@ public class FhirTesterConfig {
 	@EnableWebSecurity
 	public static class SecurityConfig extends WebSecurityConfigurerAdapter {
 
+	  @Value("${server.servlet.context-path}")
+	  String contextPath;
 		@Autowired
 		private RCCAuthenticationProvider authProvider;
 
@@ -83,32 +86,33 @@ public class FhirTesterConfig {
 
 		@Override
 		protected void configure(HttpSecurity http) throws Exception {
+			String cp = contextPath.equals("/") ? "" : contextPath;
 			String[] staticResources = {
-				"/css/**",
-				"/img/**",
-				"/fonts/**",
-				"/js/**",
-				"/resources/**",
+				cp + "/css/**",
+				cp + "/img/**",
+				cp + "/fonts/**",
+				cp + "/js/**",
+				cp + "/resources/**",
 			};
 			http
 				.csrf().disable()
 				.authorizeRequests()
 				.antMatchers(staticResources).permitAll()
-				.antMatchers("/login").permitAll()
-				.antMatchers("/fhir/**").permitAll()
-				.antMatchers("/resource**").permitAll()
-				.antMatchers("/conformance**").permitAll()
+				.antMatchers(cp + "/login").permitAll()
+				.antMatchers(cp + "/fhir/**").permitAll()
+				.antMatchers(cp + "/resource**").permitAll()
+				.antMatchers(cp + "/conformance**").permitAll()
 				.anyRequest().authenticated()
 				.and()
 				.formLogin()
-				.loginPage("/login")
-				.loginProcessingUrl("/login")
-				.defaultSuccessUrl("/", true)
+				.loginPage(cp + "/login")
+				.loginProcessingUrl(cp + "/login")
+				.defaultSuccessUrl(cp + "/", true)
 				//.failureUrl("/login?error=true")
 				.failureHandler(authenticationFailureHandler())
 				.and()
 				.logout()
-				.logoutUrl("/logout")
+				.logoutUrl(cp + "/logout")
 				.deleteCookies("JSESSIONID")
 				.logoutSuccessHandler(logoutSuccessHandler());
 		}
@@ -129,7 +133,8 @@ public class FhirTesterConfig {
 				//httpServletResponse.setStatus(HttpStatus.UNAUTHORIZED.value());
 				//String jsonPayload = "{\"message\" : \"%s\", \"timestamp\" : \"%s\" }";
 				//httpServletResponse.getOutputStream().println(String.format(jsonPayload, e.getMessage(), Calendar.getInstance().getTime()));
-				httpServletResponse.sendRedirect("/login?error=" + URLEncoder.encode(e.getMessage(), StandardCharsets.UTF_8));
+				String cp = contextPath.equals("/") ? "" : contextPath;
+				httpServletResponse.sendRedirect(cp + "/login?error=" + URLEncoder.encode(e.getMessage(), StandardCharsets.UTF_8));
 			};
 		}
 	}
