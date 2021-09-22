@@ -32,6 +32,30 @@
             margin-top: -85px;
         }
     </style>
+    <script type="application/javascript">
+        function doLogin() {
+            var ed = document.getElementById("error-resp");
+            ed.style.visibility="hidden"
+            ed.innerHTML = "";
+
+            var url = new URL(document.location.href);
+            const settings = {
+                "async": true,
+                "crossDomain": true,
+                "url": url,
+                "method": "POST",
+                "data": $("#login-form").serialize()
+            };
+            let req = $.ajax(settings);
+            req.done(function (r) {
+                document.location.href = url.href.substring(0, url.href.length - 5)
+            });
+            req.fail(function (r) {
+                ed.innerHTML = r.responseText
+                ed.style.visibility="visible"
+            });
+        }
+    </script>
 </head>
 
 <body>
@@ -41,6 +65,7 @@
             <div class="container">
                 <div id="login-row" class="row justify-content-center align-items-center">
                     <div id="login-column" class="col-md-6">
+                        <div id="error-resp" class="col-md-12 alert alert-danger alert-dismissable" style="visibility: hidden"></div>
                         <div id="login-box" class="col-md-12">
                             <form id="login-form" class="form" action="/login" method="post">
                                 <h3 class="text-center text-info">Login</h3>
@@ -54,11 +79,8 @@
                                 </div>
                                 <div class="form-group">
                                     <!--<label for="remember-me" class="text-info"><span>Remember me</span>&nbsp;<span><input id="remember-me" name="remember-me" type="checkbox"></span></label><br>-->
-                                    <input type="submit" name="submit" class="btn btn-info btn-md" value="submit">
+                                    <input type="button" name="submit" class="btn btn-info btn-md" value="submit" onclick="doLogin()">
                                 </div>
-                                <!--<div id="register-link" class="text-right">
-                                    <a href="#" class="text-info">Register here</a>
-                                </div>-->
                             </form>
                         </div>
                     </div>

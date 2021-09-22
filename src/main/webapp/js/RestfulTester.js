@@ -582,10 +582,19 @@ $( document ).ready(function() {
 		addSearchParamRow();
 	}
 	if(document.getElementById("dropdownUserMenuLink")) {
+		var url = new URL(document.location.href);
+		var p = url.pathname
+		var context = "/";
+		if(p.length > 0 && p.startsWith("/")) {
+			let part = p.substring(1);
+			let ind = part.indexOf("/")
+			context = '/' + part.substring(0, ind) + '/'
+		}
+
 		const settings = {
 			"async": true,
 			"crossDomain": true,
-			"url": "/user",
+			"url": context + "user",
 			"method": "GET",
 			"headers": {
 				"content-type": "application/json"

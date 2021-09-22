@@ -3,12 +3,14 @@ package ca.uhn.fhir.jpa.starter;
 import ca.uhn.fhir.jpa.starter.custom.RCCAuthenticationProvider;
 import ca.uhn.fhir.to.FhirTesterMvcConfig;
 import ca.uhn.fhir.to.TesterConfig;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -22,8 +24,8 @@ import javax.servlet.ServletException;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
+import java.util.Map;
 
 //@formatter:off
 /**
@@ -86,33 +88,32 @@ public class FhirTesterConfig {
 
 		@Override
 		protected void configure(HttpSecurity http) throws Exception {
-			String cp = contextPath.equals("/") ? "" : contextPath;
 			String[] staticResources = {
-				cp + "/css/**",
-				cp + "/img/**",
-				cp + "/fonts/**",
-				cp + "/js/**",
-				cp + "/resources/**",
+				"/css/**",
+				"/img/**",
+				"/fonts/**",
+				"/js/**",
+				"/resources/**",
 			};
 			http
 				.csrf().disable()
 				.authorizeRequests()
 				.antMatchers(staticResources).permitAll()
-				.antMatchers(cp + "/login").permitAll()
-				.antMatchers(cp + "/fhir/**").permitAll()
-				.antMatchers(cp + "/resource**").permitAll()
-				.antMatchers(cp + "/conformance**").permitAll()
+				.antMatchers("/login").permitAll()
+				.antMatchers("/fhir/**").permitAll()
+				.antMatchers("/resource**").permitAll()
+				.antMatchers("/conformance**").permitAll()
 				.anyRequest().authenticated()
 				.and()
 				.formLogin()
-				.loginPage(cp + "/login")
-				.loginProcessingUrl(cp + "/login")
-				.defaultSuccessUrl(cp + "/", true)
+				.loginPage("/login")
+				.loginProcessingUrl("/login")
+				.defaultSuccessUrl("/", true)
 				//.failureUrl("/login?error=true")
 				.failureHandler(authenticationFailureHandler())
 				.and()
 				.logout()
-				.logoutUrl(cp + "/logout")
+				.logoutUrl("/logout")
 				.deleteCookies("JSESSIONID")
 				.logoutSuccessHandler(logoutSuccessHandler());
 		}
@@ -129,12 +130,11 @@ public class FhirTesterConfig {
 		}
 
 		private AuthenticationFailureHandler authenticationFailureHandler() {
-			return (httpServletRequest, httpServletResponse, e) -> {
-				//httpServletResponse.setStatus(HttpStatus.UNAUTHORIZED.value());
-				//String jsonPayload = "{\"message\" : \"%s\", \"timestamp\" : \"%s\" }";
-				//httpServletResponse.getOutputStream().println(String.format(jsonPayload, e.getMessage(), Calendar.getInstance().getTime()));
-				String cp = contextPath.equals("/") ? "" : contextPath;
-				httpServletResponse.sendRedirect(cp + "/login?error=" + URLEncoder.encode(e.getMessage(), StandardCharsets.UTF_8));
+			return (httpServletRequest, response, e) -> {
+				response.setStatus(HttpStatus.UNAUTHORIZED.value());
+				Map<String, Object> data = new HashMap<>();
+				data.put("exception",e.getMessage());
+				response.getOutputStream().println(new ObjectMapper().writeValueAsString(data));
 			};
 		}
 	}
