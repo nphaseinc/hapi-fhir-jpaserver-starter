@@ -585,10 +585,14 @@ $( document ).ready(function() {
 		var url = new URL(document.location.href);
 		var p = url.pathname
 		var context = "/";
-		if(p.length > 0 && p.startsWith("/")) {
-			let part = p.substring(1);
-			let ind = part.indexOf("/")
-			context = '/' + part.substring(0, ind) + '/'
+		if(p.length > 1) {
+			if(p.startsWith("/")){
+				let part = p.substring(1, p.length)
+				let ind = part.indexOf("/")
+				if(ind > 0) {
+					context = "/" + part.substring(0, ind) + "/"
+				}
+			}
 		}
 
 		const settings = {

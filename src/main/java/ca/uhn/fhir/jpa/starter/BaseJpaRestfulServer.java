@@ -23,6 +23,8 @@ import ca.uhn.fhir.jpa.provider.SubscriptionTriggeringProvider;
 import ca.uhn.fhir.jpa.provider.TerminologyUploaderProvider;
 import ca.uhn.fhir.jpa.provider.dstu3.JpaConformanceProviderDstu3;
 import ca.uhn.fhir.jpa.search.DatabaseBackedPagingProvider;
+import ca.uhn.fhir.jpa.starter.custom.ServerSecurityInterceptor;
+import ca.uhn.fhir.jpa.starter.custom.ServerAdditionalEndpoints;
 import ca.uhn.fhir.jpa.subscription.util.SubscriptionDebugLogInterceptor;
 import ca.uhn.fhir.mdm.provider.MdmProviderLoader;
 import ca.uhn.fhir.narrative.DefaultThymeleafNarrativeGenerator;
@@ -150,7 +152,8 @@ public class BaseJpaRestfulServer extends RestfulServer {
      * provide further customization of your server's CapabilityStatement
      */
 
-    FhirVersionEnum fhirVersion = fhirSystemDao.getContext().getVersion().getVersion();
+	  registerProvider(new ServerAdditionalEndpoints());
+	  FhirVersionEnum fhirVersion = fhirSystemDao.getContext().getVersion().getVersion();
     if (fhirVersion == FhirVersionEnum.DSTU2) {
 
       JpaConformanceProviderDstu2 confProvider = new JpaConformanceProviderDstu2(this, fhirSystemDao,
@@ -326,6 +329,7 @@ public class BaseJpaRestfulServer extends RestfulServer {
     if (appProperties.getBinary_storage_enabled()) {
       getInterceptorService().registerInterceptor(binaryStorageInterceptor);
     }
+	  getInterceptorService().registerInterceptor(new ServerSecurityInterceptor());
 
     // Validation
 

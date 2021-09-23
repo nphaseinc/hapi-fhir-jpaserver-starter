@@ -5,9 +5,10 @@
     <meta charset="utf-8">
     <script th:src="@{/resources/jquery/dist/jquery.js}"></script>
     <link rel="stylesheet" th:href="@{/resources/bootstrap/dist/css/bootstrap.css}"/>
-    <link rel="stylesheet" media="screen" th:href="@{/resources/font-awesome/css/fontawesome.min.css}" />
+    <link rel="stylesheet" media="screen" th:href="@{/resources/font-awesome/css/fontawesome.min.css}"/>
     <script th:src="@{/resources/font-awesome/js/all.min.js}" data-auto-replace-svg="nest"></script>
-    <link rel="stylesheet" media="screen" th:href="@{/resources/awesome-bootstrap-checkbox/awesome-bootstrap-checkbox.css}" />
+    <link rel="stylesheet" media="screen"
+          th:href="@{/resources/awesome-bootstrap-checkbox/awesome-bootstrap-checkbox.css}"/>
     <script th:src="@{/resources/bootstrap/dist/js/bootstrap.min.js}"></script>
 
     <title>Login</title>
@@ -18,6 +19,7 @@
             background-image: url('img/bg.png');
             height: 100vh;
         }
+
         #login .container #login-row #login-column #login-box {
             margin-top: 120px;
             max-width: 600px;
@@ -25,9 +27,11 @@
             border: 1px solid #9C9C9C;
             background-color: #EAEAEA;
         }
+
         #login .container #login-row #login-column #login-box #login-form {
             padding: 20px;
         }
+
         #login .container #login-row #login-column #login-box #login-form #register-link {
             margin-top: -85px;
         }
@@ -35,14 +39,14 @@
     <script type="application/javascript">
         function doLogin() {
             var ed = document.getElementById("error-resp");
-            ed.style.visibility="hidden"
+            ed.style.visibility = "hidden"
             ed.innerHTML = "";
 
             var url = new URL(document.location.href);
             const settings = {
                 "async": true,
                 "crossDomain": true,
-                "url": url,
+                "url": url.href,
                 "method": "POST",
                 "data": $("#login-form").serialize()
             };
@@ -51,42 +55,44 @@
                 document.location.href = url.href.substring(0, url.href.length - 5)
             });
             req.fail(function (r) {
-                ed.innerHTML = r.responseText
-                ed.style.visibility="visible"
+                ed.innerHTML = r && r.responseText ? r.responseText : (r ? r : "Login attempt was fail")
+                ed.style.visibility = "visible"
             });
         }
     </script>
 </head>
 
 <body>
-    <main class="login-form">
-        <div id="login">
-            <h2 class="text-center text-white pt-5">REDCap FHIR Server</h2>
-            <div class="container">
-                <div id="login-row" class="row justify-content-center align-items-center">
-                    <div id="login-column" class="col-md-6">
-                        <div id="error-resp" class="col-md-12 alert alert-danger alert-dismissable" style="visibility: hidden"></div>
-                        <div id="login-box" class="col-md-12">
-                            <form id="login-form" class="form" action="/login" method="post">
-                                <h3 class="text-center text-info">Login</h3>
-                                <div class="form-group">
-                                    <label for="username" class="text-info">Username:</label><br>
-                                    <input type="text" name="username" id="username" class="form-control">
-                                </div>
-                                <div class="form-group">
-                                    <label for="password" class="text-info">Password:</label><br>
-                                    <input type="password" name="password" id="password" class="form-control">
-                                </div>
-                                <div class="form-group">
-                                    <!--<label for="remember-me" class="text-info"><span>Remember me</span>&nbsp;<span><input id="remember-me" name="remember-me" type="checkbox"></span></label><br>-->
-                                    <input type="button" name="submit" class="btn btn-info btn-md" value="submit" onclick="doLogin()">
-                                </div>
-                            </form>
-                        </div>
+<main class="login-form">
+    <div id="login">
+        <h2 class="text-center text-white pt-5">REDCap FHIR Server</h2>
+        <div class="container">
+            <div id="login-row" class="row justify-content-center align-items-center">
+                <div id="login-column" class="col-md-6">
+                    <div id="error-resp" class="col-md-12 alert alert-danger alert-dismissable"
+                         style="visibility: hidden"></div>
+                    <div id="login-box" class="col-md-12">
+                        <form id="login-form" class="form" action="/login" method="post">
+                            <h3 class="text-center text-info">Login</h3>
+                            <div class="form-group">
+                                <label for="username" class="text-info">Username:</label><br>
+                                <input type="text" name="username" id="username" class="form-control">
+                            </div>
+                            <div class="form-group">
+                                <label for="password" class="text-info">Password:</label><br>
+                                <input type="password" name="password" id="password" class="form-control">
+                            </div>
+                            <div class="form-group">
+                                <!--<label for="remember-me" class="text-info"><span>Remember me</span>&nbsp;<span><input id="remember-me" name="remember-me" type="checkbox"></span></label><br>-->
+                                <input type="button" name="submit" class="btn btn-info btn-md" value="submit"
+                                       onclick="doLogin()">
+                            </div>
+                        </form>
                     </div>
                 </div>
             </div>
         </div>
+    </div>
 </main>
 </body>
 </html>

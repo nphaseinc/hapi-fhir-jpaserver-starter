@@ -8,13 +8,13 @@
 
 <script type="application/javascript">
 
-    function getCondition(url, page) {
+    function getCondition(url, page, attempt) {
         get(url, function (resp) {
             const e = resp.entry;
             let len = e && e.length ? e.length : 0
             var pageFullyIterated = false;
             for (let i = 0; i < len; i++) {
-                if (page.data.length < 30) {
+                if (page.data.length < 10) {
                     const code = e[i].resource.code.coding[0].code;
                     const display = e[i].resource.code.coding[0].display;
                     var last = page.data.length === 0 ? null : page.data[page.data.length - 1];
@@ -41,11 +41,14 @@
             if (!pageFullyIterated) {
                 page.next = url;
             }
-            if (page.data.length < 30 && page.next)
-                getCondition(page.next, page)
+            if (page.data.length < 10 && page.next)
+                getCondition(page.next, page, 0)
             else {
                 conditionListRender(page)
             }
+        }, function () {
+            if(attempt < 3)
+                getCondition(url, page, ++attempt)
         })
     }
 
@@ -53,7 +56,7 @@
         if (document.getElementById("moreButton")) {
             document.getElementById("moreButton").style = "pointer-events: none;color: gray"
         }
-        document.getElementById("LoadingDiv").innerHTML = "Loading..."
+        document.getElementById("LoadingDiv").innerHTML = "Report is ready. Loading it from FHIR Server..."
         var page = {
             "data": [],
             "next": null,
@@ -94,9 +97,32 @@
         let h = document.location.href;
         if (h.indexOf("custom=summary") > 0) {
             let html = "<h3>Summary of Diseases</h3><table id='conditionListTab' cellpadding='3' cellspacing='3'></table>";
-            $("#containerDiv").html(html + '<div id="LoadingDiv"></div><div id="conditionListLoading"></div>');
-            recursiveCondition(rootPath() + "/fhir/Condition?_sort=code&_count=100");
+            $("#containerDiv").html(html + '<div id="LoadingDiv">Aggregation report is generating on the FHIR Server...</div><div id="conditionListLoading"></div>');
+            poll(function() {
+                post(rootPath() + "/fhir/$getSearchCondition", function (resp) {
+                    if(resp.link && resp.link[1])
+                        recursiveCondition(resp.link[1].url);
+                }, null, true)
+            });
         }
+    }
+
+    function poll(completeFunc) {
+        setTimeout(function () {
+            checkDataAvailable(completeFunc);
+        }, 3000);
+    }
+
+    function checkDataAvailable(completeFunc) {
+        post(rootPath() + "/fhir/$searchConditionDone", function (resp) {
+            if (!resp["result-exist"]) {
+                poll(completeFunc)
+            } else {
+                setTimeout(function () {
+                    completeFunc()
+                }, 3000);
+            }
+        }, null, false);
     }
 
     function rootPath() {
@@ -160,11 +186,19 @@
     }
 
     function get(url, successFunc, failFunc) {
+        ajax(url, successFunc, failFunc, "GET", true)
+    }
+
+    function post(url, successFunc, failFunc, a) {
+        ajax(url, successFunc, failFunc, "POST", a)
+    }
+
+    function ajax(url, successFunc, failFunc, method, a) {
         const settings = {
-            "async": true,
+            "async": a,
             "crossDomain": true,
             "url": url,
-            "method": "GET",
+            "method": method,
             "headers": {
                 "content-type": "application/fhir+json"
             }
