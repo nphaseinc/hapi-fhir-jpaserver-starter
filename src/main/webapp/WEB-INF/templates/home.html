@@ -8,121 +8,47 @@
 
 <script type="application/javascript">
 
-    function getCondition(url, page, attempt) {
-        get(url, function (resp) {
-            const e = resp.entry;
-            let len = e && e.length ? e.length : 0
-            var pageFullyIterated = false;
-            for (let i = 0; i < len; i++) {
-                if (page.data.length < 10) {
-                    const code = e[i].resource.code.coding[0].code;
-                    const display = e[i].resource.code.coding[0].display;
-                    var last = page.data.length === 0 ? null : page.data[page.data.length - 1];
-                    if (!last || last.code !== code) {
-                        page.data[page.data.length] = {"code": code, "display": display, "count": 1};
-                    } else {
-                        last.count = last.count + 1
-                    }
-                } else {
-                    pageFullyIterated = (i === len - 1)
-                    break;
-                }
-                if (i === len - 1) pageFullyIterated = true;
-            }
-            page.next = "";
-            if (resp.link) {
-                if (resp.link[1] && resp.link[1].url) {
-                    page.next = resp.link[1].url
-                    if (resp.link[1].url === resp.link[0].url)
-                        page.next = null
-                }
-            }
-
-            if (!pageFullyIterated) {
-                page.next = url;
-            }
-            if (page.data.length < 10 && page.next)
-                getCondition(page.next, page, 0)
-            else {
-                conditionListRender(page)
-            }
-        }, function () {
-            if(attempt < 3)
-                getCondition(url, page, ++attempt)
-        })
-    }
-
-    function recursiveCondition(self) {
-        if (document.getElementById("moreButton")) {
-            document.getElementById("moreButton").style = "pointer-events: none;color: gray"
-        }
-        document.getElementById("LoadingDiv").innerHTML = "Report is ready. Loading it from FHIR Server..."
-        var page = {
-            "data": [],
-            "next": null,
-            "self": self
-        }
-        getCondition(self, page)
-    }
-
-    function conditionListRender(page) {
-        let len = page && page.data.length ? page.data.length : 0
-        for (let i = 0; i < len; i++) {
-            const code = page.data[i].code;
-            const display = page.data[i].display;
-            const count = page.data[i].count;
-            let url = rootPath() + "/fhir/Condition?_pretty=true&code=" + code
-            const link = "<a href=\"javascript:personList('" + url + "', '" + display + "')\">Details</a>";
-            let tr = document.createElement("tr");
-            document.getElementById("conditionListTab").appendChild(tr);
-            tr.innerHTML = "<tr><td>" + display + "</td><td>" + count + "</td><td>" + link + "</td></tr>"
-        }
-        let nextStyle = "style=\"pointer-events: none;color: gray\"";
-        let next = "";
-        if (page.next) {
-            nextStyle = "";
-            next = page.next
-        }
-        var pageNext = next ? "\"" + next + "\"" : null
-        if (document.getElementById("conditionListTab").getElementsByTagName("tr").length === 0) {
-            document.getElementById("conditionListLoading").innerHTML = ""
-            document.getElementById("conditionListLoading").innerHTML = "<div style='color: #CCCCCC'>No records</div>"
-        } else {
-            document.getElementById("conditionListLoading").innerHTML = "<a id='moreButton' " + nextStyle + " href='javascript:recursiveCondition(" + pageNext + ")'>more >>>></a>"
-        }
-        document.getElementById("LoadingDiv").innerHTML = ""
-    }
-
     function changeForm() {
         let h = document.location.href;
         if (h.indexOf("custom=summary") > 0) {
             let html = "<h3>Summary of Diseases</h3><table id='conditionListTab' cellpadding='3' cellspacing='3'></table>";
             $("#containerDiv").html(html + '<div id="LoadingDiv">Aggregation report is generating on the FHIR Server...</div><div id="conditionListLoading"></div>');
-            poll(function() {
-                post(rootPath() + "/fhir/$getSearchCondition", function (resp) {
-                    if(resp.link && resp.link[1])
-                        recursiveCondition(resp.link[1].url);
-                }, null, true)
-            });
+            if (document.getElementById("moreButton")) {
+                document.getElementById("moreButton").style = "pointer-events: none;color: gray"
+            }
+            document.getElementById("LoadingDiv").innerHTML = "Report is ready. Loading it from FHIR Server..."
+            generatePage(0);
         }
     }
 
-    function poll(completeFunc) {
-        setTimeout(function () {
-            checkDataAvailable(completeFunc);
-        }, 3000);
-    }
-
-    function checkDataAvailable(completeFunc) {
-        post(rootPath() + "/fhir/$searchConditionDone", function (resp) {
-            if (!resp["result-exist"]) {
-                poll(completeFunc)
-            } else {
-                setTimeout(function () {
-                    completeFunc()
-                }, 3000);
+    function generatePage(page) {
+        let data = {}
+        data.page = page;
+        data.size = 20;
+        post(rootPath() + "/fhir/$getSearchCondition", function (resp) {
+            let data = resp.data? resp.data: {};
+            for (let code in data) {
+                const display = data[code].display;
+                const count = data[code].personCount;
+                let url = rootPath() + "/fhir/Condition?_pretty=true&code=" + code
+                const link = "<a href=\"javascript:personList('" + url + "', '" + display + "')\">Details</a>";
+                let tr = document.createElement("tr");
+                document.getElementById("conditionListTab").appendChild(tr);
+                tr.innerHTML = "<tr><td>" + display + "</td><td>" + count + "</td><td>" + link + "</td></tr>"
             }
-        }, null, false);
+            let nextStyle = "style=\"pointer-events: none;color: gray\"";
+            if (resp.hasNext) {
+                nextStyle = "";
+            }
+            if (document.getElementById("conditionListTab").getElementsByTagName("tr").length === 0) {
+                document.getElementById("conditionListLoading").innerHTML = ""
+                document.getElementById("conditionListLoading").innerHTML = "<div style='color: #CCCCCC'>No records</div>"
+            } else {
+                document.getElementById("conditionListLoading").innerHTML = "<a id='moreButton' " + nextStyle + " href='javascript:generatePage(" + (++page) + ")'>more >>>></a>"
+            }
+            document.getElementById("LoadingDiv").innerHTML = ""
+
+        }, null, data)
     }
 
     function rootPath() {
@@ -153,8 +79,14 @@
                 let prevStyle = "style=\"pointer-events: none;color: gray\"";
                 if (resp.link) {
                     if (resp.link[1] && resp.link[1].url) {
-                        nextStyle = "";
-                        next = resp.link[1].url
+                        let rel = resp.link[1].relation;
+                        if(rel === "next") {
+                            nextStyle = "";
+                            next = resp.link[1].url
+                        } else if (rel === 'previous') {
+                            prevStyle = "";
+                            prev = resp.link[1].url
+                        }
                     }
                     if (resp.link[2] && resp.link[2].url) {
                         prevStyle = "";
@@ -186,19 +118,20 @@
     }
 
     function get(url, successFunc, failFunc) {
-        ajax(url, successFunc, failFunc, "GET", true)
+        ajax(url, successFunc, failFunc, "GET", {})
     }
 
-    function post(url, successFunc, failFunc, a) {
-        ajax(url, successFunc, failFunc, "POST", a)
+    function post(url, successFunc, failFunc, data) {
+        ajax(url, successFunc, failFunc, "POST", data)
     }
 
-    function ajax(url, successFunc, failFunc, method, a) {
+    function ajax(url, successFunc, failFunc, method, data) {
         const settings = {
-            "async": a,
+            "async": true,
             "crossDomain": true,
             "url": url,
             "method": method,
+            "data": data,
             "headers": {
                 "content-type": "application/fhir+json"
             }

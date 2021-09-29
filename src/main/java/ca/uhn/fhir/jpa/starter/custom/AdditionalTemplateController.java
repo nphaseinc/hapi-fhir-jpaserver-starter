@@ -7,10 +7,12 @@ import org.springframework.web.bind.annotation.RequestMapping;
 
 import javax.servlet.http.HttpServletRequest;
 
+import java.util.ArrayList;
+
 import static org.apache.commons.lang3.StringUtils.defaultString;
 
 @org.springframework.stereotype.Controller()
-public class LoginTemplateController extends BaseController {
+public class AdditionalTemplateController extends BaseController {
 	@RequestMapping(value = {"/login"})
 	public String actionLogin(HttpServletRequest theServletRequest, final HomeRequest theRequest, final ModelMap theModel) {
 		final String serverId = theRequest.getServerIdWithDefault(myConfig);
@@ -32,6 +34,30 @@ public class LoginTemplateController extends BaseController {
 		theModel.put("notHome", true);
 		theModel.put("extraBreadcrumb", "Login");
 		return "login";
+	}
+
+	@RequestMapping(value = {"/apikeys"})
+	public String apikeys(HttpServletRequest theServletRequest, final HomeRequest theRequest, final ModelMap theModel) {
+		final String serverId = theRequest.getServerIdWithDefault(myConfig);
+		final String serverBase = theRequest.getServerBase(theServletRequest, myConfig);
+		final String serverName = theRequest.getServerName(myConfig);
+		final String apiKey = theRequest.getApiKey(theServletRequest, myConfig);
+		theModel.put("serverId", sanitizeInput(serverId));
+		theModel.put("baseName", sanitizeInput(serverName));
+		theModel.put("apiKey", sanitizeInput(apiKey));
+		theModel.put("resourceName", sanitizeInput(defaultString(theRequest.getResource())));
+		theModel.put("encoding", sanitizeInput(theRequest.getEncoding()));
+		theModel.put("pretty", sanitizeInput(theRequest.getPretty()));
+		theModel.put("_summary", sanitizeInput(theRequest.get_summary()));
+		theModel.put("serverEntries", myConfig.getIdToServerName());
+		theModel.put("apiKeys", new ArrayList<>());
+
+		// doesn't need sanitizing
+		theModel.put("base", serverBase);
+
+		theModel.put("notHome", true);
+		theModel.put("extraBreadcrumb", "Apikeys");
+		return "apikeys";
 	}
 
 

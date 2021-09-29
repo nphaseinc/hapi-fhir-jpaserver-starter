@@ -65,15 +65,14 @@
 <body>
 <main class="login-form">
     <div id="login">
-        <h2 class="text-center text-white pt-5">REDCap FHIR Server</h2>
         <div class="container">
             <div id="login-row" class="row justify-content-center align-items-center">
                 <div id="login-column" class="col-md-6">
                     <div id="error-resp" class="col-md-12 alert alert-danger alert-dismissable"
                          style="visibility: hidden"></div>
-                    <div id="login-box" class="col-md-12">
+                    <div id="login-box" class="col-md-12" style="height: 100%">
                         <form id="login-form" class="form" action="/login" method="post">
-                            <h3 class="text-center text-info">Login</h3>
+                            <h3 class="text-center text-info"><img src="img/logo.png"/></h3>
                             <div class="form-group">
                                 <label for="username" class="text-info">Username:</label><br>
                                 <input type="text" name="username" id="username" class="form-control">
@@ -87,6 +86,9 @@
                                 <input type="button" name="submit" class="btn btn-info btn-md" value="submit"
                                        onclick="doLogin()">
                             </div>
+                            <div class="form-group text-center">Copyright © 2015-2021, nPhase, Inc. All rights reserved.</div>
+                            <div class="form-group text-center"><a href="https://www.redcapcloud.com/privacy-policy">Privacy</a> &nbsp;|&nbsp;
+                                <a href="https://www.redcapcloud.com/terms-of-use">Terms</a></div>
                         </form>
                     </div>
                 </div>
