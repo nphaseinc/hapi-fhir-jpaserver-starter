@@ -1,18 +1,24 @@
 package ca.uhn.fhir.jpa.starter.custom;
 
+import ca.uhn.fhir.jpa.starter.custom.apikey.ApiKeyService;
 import ca.uhn.fhir.to.BaseController;
 import ca.uhn.fhir.to.model.HomeRequest;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.ui.ModelMap;
 import org.springframework.web.bind.annotation.RequestMapping;
 
 import javax.servlet.http.HttpServletRequest;
 
-import java.util.ArrayList;
 
 import static org.apache.commons.lang3.StringUtils.defaultString;
 
 @org.springframework.stereotype.Controller()
 public class AdditionalTemplateController extends BaseController {
+	@Autowired
+	ApiKeyService apiKeyService;
+
 	@RequestMapping(value = {"/login"})
 	public String actionLogin(HttpServletRequest theServletRequest, final HomeRequest theRequest, final ModelMap theModel) {
 		final String serverId = theRequest.getServerIdWithDefault(myConfig);
@@ -50,7 +56,9 @@ public class AdditionalTemplateController extends BaseController {
 		theModel.put("pretty", sanitizeInput(theRequest.getPretty()));
 		theModel.put("_summary", sanitizeInput(theRequest.get_summary()));
 		theModel.put("serverEntries", myConfig.getIdToServerName());
-		theModel.put("apiKeys", new ArrayList<>());
+		Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+
+		theModel.put("apiKeys", apiKeyService.getAllKeys(authentication));
 
 		// doesn't need sanitizing
 		theModel.put("base", serverBase);

@@ -64,7 +64,8 @@ public class FhirServerConfigDstu3 extends BaseJavaConfigDstu3 {
   @Bean
   public LocalContainerEntityManagerFactoryBean entityManagerFactory() {
     LocalContainerEntityManagerFactoryBean retVal = super.entityManagerFactory();
-    retVal.setPersistenceUnitName("HAPI_PU");
+	  retVal.setPackagesToScan("ca.uhn.fhir.jpa.model.entity", "ca.uhn.fhir.jpa.entity", "ca.uhn.fhir.jpa.starter.custom");
+	  retVal.setPersistenceUnitName("HAPI_PU");
 
     try {
       retVal.setDataSource(myDataSource);

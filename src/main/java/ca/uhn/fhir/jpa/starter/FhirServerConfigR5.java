@@ -61,6 +61,7 @@ public class FhirServerConfigR5 extends BaseJavaConfigR5 {
   @Bean()
   public LocalContainerEntityManagerFactoryBean entityManagerFactory() {
     LocalContainerEntityManagerFactoryBean retVal = super.entityManagerFactory();
+	  retVal.setPackagesToScan("ca.uhn.fhir.jpa.model.entity", "ca.uhn.fhir.jpa.entity", "ca.uhn.fhir.jpa.starter.custom");
     retVal.setPersistenceUnitName("HAPI_PU");
 
     try {

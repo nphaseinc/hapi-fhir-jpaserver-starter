@@ -3,6 +3,7 @@ package ca.uhn.fhir.jpa.starter.custom;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonSyntaxException;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -59,6 +60,10 @@ public class RCCAuthenticationProvider implements AuthenticationProvider {
 			JsonObject object = new Gson().fromJson(response.body(), JsonObject.class);
 			if(object.has("error")) return object.get("error").getAsString();
 		} catch (JsonSyntaxException ignore) {
+			HttpStatus status = HttpStatus.resolve(response.statusCode());
+			if(status != null) {
+				return status.getReasonPhrase();
+			}
 		}
 		return response.body();
 	}

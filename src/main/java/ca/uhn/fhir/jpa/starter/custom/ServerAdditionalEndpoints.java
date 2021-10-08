@@ -2,19 +2,27 @@ package ca.uhn.fhir.jpa.starter.custom;
 
 import ca.uhn.fhir.context.FhirContext;
 import ca.uhn.fhir.context.FhirVersionEnum;
+import ca.uhn.fhir.jpa.starter.custom.apikey.ApiKeyService;
 import ca.uhn.fhir.rest.annotation.Operation;
 import ca.uhn.fhir.rest.client.api.IGenericClient;
+import ca.uhn.fhir.rest.client.interceptor.BearerTokenAuthInterceptor;
 import ca.uhn.fhir.to.TesterConfig;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.apache.commons.io.IOUtils;
 import org.hl7.fhir.instance.model.api.IBaseBundle;
 import org.hl7.fhir.instance.model.api.IBaseResource;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.config.ConfigurableBeanFactory;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.annotation.Scope;
 import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.TaskScheduler;
 import org.springframework.scheduling.concurrent.ConcurrentTaskScheduler;
 import org.springframework.scheduling.support.PeriodicTrigger;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.RestController;
 
 import javax.annotation.PostConstruct;
@@ -22,19 +30,25 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.net.Socket;
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 @RestController
+@Scope(ConfigurableBeanFactory.SCOPE_SINGLETON)
 public class ServerAdditionalEndpoints {
 
+	public static final String INTERNAL_TOKEN = "_INTERNAL_TOKEN_";
 	private final TaskScheduler taskScheduler = new ConcurrentTaskScheduler();
 
-	@Autowired
-	ApiKeyService apiKeyService;
+	private final ApiKeyService apiKeyService;
+
 	@Autowired
 	protected TesterConfig myConfig;
 
@@ -42,6 +56,12 @@ public class ServerAdditionalEndpoints {
 	private static ConditionSearch conditionSearch;
 
 	private static final Map<String, Disease> DATA = new LinkedHashMap<>();
+
+
+
+	public ServerAdditionalEndpoints(ApiKeyService apiKeyService) {
+		this.apiKeyService = apiKeyService;
+	}
 
 	@PostConstruct
 	public void init() {
@@ -83,7 +103,7 @@ public class ServerAdditionalEndpoints {
 		}).start();
 	}
 
-	@Operation(name = "$getSearchCondition", manualRequest = true, manualResponse = true)
+	@Operation(name = "$getSearchCondition", manualRequest = true, manualResponse = true, idempotent = true)
 	public void getSearchCondition(HttpServletRequest request, HttpServletResponse response) throws IOException {
 		String all = request.getParameter("all");
 		final Map<String, Disease> ret;
@@ -105,23 +125,6 @@ public class ServerAdditionalEndpoints {
 		response(response, () -> data);
 	}
 
-	private int getIntParam(String params, String name, int defaultVal) {
-		try {
-			Optional<Integer> o = Arrays.stream(params.split("&"))
-				.map(s -> s.split("="))
-				.filter(a -> a[0].equals(name))
-				.findFirst()
-				.map(a -> Integer.parseInt(a[1]));
-			if (o.isPresent()) return o.get();
-		} catch (Exception ignore) {
-		}
-		return defaultVal;
-	}
-
-	public void doSearchCondition() {
-		new Thread(conditionSearch).start();
-	}
-
 	@Operation(name = "$forceRegenerate", manualRequest = true, manualResponse = true)
 	public void forceRegenerate(HttpServletResponse response) throws IOException {
 		if (!conditionSearch.dataUpdating) {
@@ -133,7 +136,18 @@ public class ServerAdditionalEndpoints {
 		response.getWriter().close();
 	}
 
-	@Operation(name = "$searchConditionDone", manualRequest = true, manualResponse = true)
+	@Operation(name = "$stopGeneration", manualRequest = true, manualResponse = true)
+	public void stopGeneration(HttpServletResponse response) throws IOException {
+		if (conditionSearch.dataUpdating) {
+			conditionSearch.stop = true;
+		}
+		response.setContentType("application/json");
+		String json = "{\"in-progress\" : \"stopping\"}";
+		response.getWriter().write(json);
+		response.getWriter().close();
+	}
+
+	@Operation(name = "$searchConditionDone", manualRequest = true, manualResponse = true, idempotent = true)
 	public void searchConditionDone(HttpServletResponse response) throws IOException {
 		if (!conditionSearch.dataUpdating && resultDate == null) {
 			doSearchCondition();
@@ -146,18 +160,70 @@ public class ServerAdditionalEndpoints {
 		response.getWriter().close();
 	}
 
-	@Operation(name = "$generateApiKey", manualRequest = true, manualResponse = true)
-	public void generateApiKey(HttpServletResponse response) throws IOException {
-		response(response, () ->apiKeyService.generateNewKey());
+	@Operation(name = "$generateApiKey", manualRequest = true, manualResponse = true )
+	public void generateApiKey(HttpServletRequest request,HttpServletResponse response) throws IOException {
+		String params = new String(IOUtils.toByteArray(request.getInputStream()));
+		LocalDateTime expireDate = getDateTimeParam(params, "expireDate");
+		response(response, () -> apiKeyService.generateNewKey(expireDate));
 	}
 
-	@Operation(name = "$getApiKeys", manualRequest = true, manualResponse = true)
+	@Operation(name = "$switchStatus", manualRequest = true, manualResponse = true )
+	public void switchStatus(HttpServletRequest request, HttpServletResponse response) throws IOException {
+		String params = new String(IOUtils.toByteArray(request.getInputStream()));
+		int id = getIntParam(params, "id", 0);
+		if(id == 0) {
+			throw new IllegalArgumentException("id is required");
+		}
+		response(response, () -> apiKeyService.switchStatus(id));
+	}
+
+	@Operation(name = "$revokeKey", manualRequest = true, manualResponse = true )
+	public void revokeKey(HttpServletRequest request, HttpServletResponse response) throws IOException {
+		String params = new String(IOUtils.toByteArray(request.getInputStream()));
+		int id = getIntParam(params, "id", 0);
+		if(id == 0) {
+			throw new IllegalArgumentException("id is required");
+		}
+		response(response, () -> {apiKeyService.revokeKey(id); return "";});
+	}
+
+	@Operation(name = "$getApiKeys", manualRequest = true, manualResponse = true, idempotent = true)
 	public void getApiKeys(HttpServletResponse response) throws IOException {
-		response(response, () ->apiKeyService.getAllKeys());
+		Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+
+		response(response, () -> apiKeyService.getAllKeys(authentication));
+	}
+
+	private <T> T getParam(String params, String name, T defaultVal, Function<? super String[], ? extends T> mapper) {
+		try {
+			Optional<T> o = Arrays.stream(params.split("&"))
+				.map(s -> s.split("="))
+				.filter(a -> a[0].equals(name))
+				.findFirst()
+				.map(mapper);
+			if (o.isPresent()) return o.get();
+		} catch (Exception ignore) {
+		}
+		return defaultVal;
+	}
+
+	private int getIntParam(String params, String name, int defaultVal) {
+		return getParam(params, name, defaultVal, a -> Integer.parseInt(a[1]));
+	}
+
+	private LocalDateTime getDateTimeParam(String params, String name) {
+		return getParam(params, name, null,
+			a -> LocalDateTime.parse(URLDecoder.decode(a[1], StandardCharsets.UTF_8), DateTimeFormatter.ISO_OFFSET_DATE_TIME));
+	}
+
+	private void doSearchCondition() {
+		new Thread(conditionSearch).start();
 	}
 
 	private void response(HttpServletResponse response, Supplier<?> dataSupplier) throws IOException {
 		ObjectMapper objectMapper = new ObjectMapper();
+		objectMapper.registerModule(new JavaTimeModule());
+		objectMapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
 		response.setContentType("application/json");
 		objectMapper.writeValue(response.getWriter(), dataSupplier.get());
 		response.getWriter().close();
@@ -168,7 +234,12 @@ public class ServerAdditionalEndpoints {
 		private final Class<? extends IBaseResource> aClass;
 		private final Class<? extends IBaseBundle> bundleClass;
 		private volatile boolean dataUpdating = false;
+		private volatile boolean stop = false;
 		private String nextURL;
+
+		private class StopException extends RuntimeException {
+
+		}
 
 		public ConditionSearch(FhirContext ctx, Class<? extends IBaseResource> aClass, Class<? extends IBaseBundle> bundleClass) {
 			this.ctx = ctx;
@@ -180,12 +251,15 @@ public class ServerAdditionalEndpoints {
 		public synchronized void run() {
 			try {
 				dataUpdating = true;
+				stop = false;
 				Map<String, Disease> d = new LinkedHashMap<>();
 				String serverBase = myConfig.getIdToServerBase().entrySet().iterator().next().getValue();
 				ctx.getRestfulClientFactory().setSocketTimeout(15 * 60 * 1000);
 				ctx.getRestfulClientFactory().setConnectTimeout(15 * 60 * 1000);
 				ctx.getRestfulClientFactory().setConnectionRequestTimeout(15 * 60 * 1000);
 				IGenericClient client = ctx.newRestfulGenericClient(serverBase);
+				BearerTokenAuthInterceptor authInterceptor = new BearerTokenAuthInterceptor(INTERNAL_TOKEN);
+				client.registerInterceptor(authInterceptor);
 				IBaseBundle result = repeat(3, () ->
 					client
 						.search()
@@ -195,6 +269,7 @@ public class ServerAdditionalEndpoints {
 						.execute()
 				);
 				while (hasNext(result, d)) {
+					if (stop) throw new StopException();
 					result = next();
 					nextURL = null;
 				}
@@ -202,6 +277,10 @@ public class ServerAdditionalEndpoints {
 				DATA.clear();
 				DATA.putAll(d);
 				d.clear();
+			} catch (StopException e ) {
+				stop = false;
+				DATA.clear();
+				resultDate = null;
 			} finally {
 				dataUpdating = false;
 			}
@@ -278,6 +357,8 @@ public class ServerAdditionalEndpoints {
 		private IBaseBundle next() {
 			String serverBase = myConfig.getIdToServerBase().entrySet().iterator().next().getValue();
 			IGenericClient client = ctx.newRestfulGenericClient(serverBase);
+			BearerTokenAuthInterceptor authInterceptor = new BearerTokenAuthInterceptor(INTERNAL_TOKEN);
+			client.registerInterceptor(authInterceptor);
 			return repeat(3, () -> client
 				.search()
 				.byUrl(nextURL)

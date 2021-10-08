@@ -1,0 +1,64 @@
+apiVersion: apps.openshift.io/v1
+kind: DeploymentConfig
+metadata:
+  labels:
+    app: ${APP_NAME}
+  name: ${APP_NAME}
+  namespace: ${NAMESPACE}
+spec:
+  replicas: ${REPLICAS}
+  selector:
+    deploymentconfig: ${APP_NAME}
+  strategy:
+    activeDeadlineSeconds: 21600
+    resources: {}
+    rollingParams:
+      intervalSeconds: 1
+      maxSurge: 25%
+      maxUnavailable: 25%
+      timeoutSeconds: 600
+      updatePeriodSeconds: 1
+    type: Rolling
+  template:
+    metadata:
+      labels:
+        deploymentconfig: ${APP_NAME}
+    spec:
+      containers:
+        - env:
+            - name: FHIR_VERSION
+              value: "${FHIR_VERSION}"
+            - name: FHIR_JDBC_URL
+              value: "${FHIR_JDBC_URL}"
+            - name: FHIR_DATABASE_PASSWORD
+              value: "${FHIR_DATABASE_PASSWORD}"
+            - name: FHIR_DATABASE_USER
+              value: "${FHIR_DATABASE_USER}"
+            - name: SPRING_CONFIG_LOCATION
+              value: "file:///data/hapi/application.yaml"
+          image: >-
+            hapiproject/hapi:latest
+          imagePullPolicy: Always
+          name: ${APP_NAME}
+          ports:
+            - containerPort: ${PORT}
+              protocol: TCP
+          resources: {}
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+            - mountPath: /data/hapi
+              name: fhir-config
+      dnsPolicy: ClusterFirst
+      imagePullSecrets:
+        - name: quay.io
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext: {}
+      terminationGracePeriodSeconds: 30
+      volumes:
+        - name: fhir-config
+          secret:
+            defaultMode: 420
+            secretName: fhir-config
+  test: false

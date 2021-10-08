@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <title th:include="window-title :: home"/>
+    <th:block th:include="tmpl-head :: head"/>
+    <script th:include="tmpl-buttonclick-handler :: handler"/>
+    <script type="application/javascript">
+        function showSecret(button) {
+            let span = button.parentNode.getElementsByTagName("span")[0]
+
+            let b = button.innerHTML;
+            if(b === "Hide") {
+                span.style.display = "none"
+                button.innerHTML = "Show"
+            } else {
+                span.style.display = "inline-block"
+                button.innerHTML = "Hide"
+            }
+        }
+
+        function revokeKey(id) {
+            callServer(rootPath() + "/fhir/$revokeKey", {"id": id})
+        }
+
+        function switchStatus(id) {
+            callServer(rootPath() + "/fhir/$switchStatus", {"id": id})
+        }
+
+        function addApiKey() {
+            let p = {}
+            if(document.getElementById("expireDate").value) {
+                p.expireDate= document.getElementById("expireDate").value
+            }
+            callServer(rootPath() + "/fhir/$generateApiKey", p)
+        }
+
+        var showDisableLayer = function() {
+            $('<div id="loading" style="z-index: 2147483647;position: fixed; top: 0;left: 0;"><div style="position: fixed;top: 50%;left: 50%;" class="spinner-grow d-flex justify-content-center" role="status">\n' +
+                '  <span class="sr-only">Loading...</span></div></div>').appendTo(document.body);
+            $("#loading").height($(document).height());
+            $("#loading").width($(document).width());
+        };
+
+        var hideDisableLayer = function() {
+            $("#loading").remove();
+        };
+
+        function callServer(endpoint, data) {
+            var ed = document.getElementById("errorDiv");
+            ed.style.visibility = "hidden"
+            ed.innerHTML = "";
+            showDisableLayer()
+            post(endpoint, function () {
+                hideDisableLayer()
+                document.location.reload();
+            }, function (resp) {
+                hideDisableLayer()
+                ed.style.visibility = "hidden"
+                ed.innerHTML = resp;
+            }, data);
+        }
+
+        function post(url, successFunc, failFunc, data) {
+            ajax(url, successFunc, failFunc, "POST", data)
+        }
+
+        function ajax(url, successFunc, failFunc, method, data) {
+            const settings = {
+                "async": true,
+                "crossDomain": true,
+                "url": url,
+                "method": method,
+                "data": data,
+                "headers": {
+                    "content-type": "application/fhir+json"
+                }
+            };
+            let req = $.ajax(settings);
+            req.done(function (response) {
+                if (successFunc)
+                    successFunc(response)
+            });
+            req.fail(function (response) {
+                if (failFunc)
+                    failFunc(response)
+            });
+        }
+
+        function rootPath() {
+            var url = new URL(document.location.href);
+            var p = url.pathname
+            if (p === "/apikeys") p = "";
+            var ind = p.indexOf("/apikeys")
+            if (ind > 1) {
+                p = p.substring(0, ind);
+            }
+            return url.origin + p;
+        }
+
+        function copyToClipboard(text) {
+            var $temp = $("<input>");
+            $("body").append($temp);
+            $temp.val(text).select();
+            document.execCommand("copy");
+            $temp.remove();
+        }
+
+    </script>
+</head>
+<body>
+<form action="" method="get" id="outerForm">
+    <div th:replace="tmpl-navbar-top :: top"></div>
+
+    <div class="p-3">
+        <br/>
+        <div id="errorDiv" class="col-md-12 alert alert-danger alert-dismissable" style="display: none"></div>
+        <div class="panel panel-default">
+            <div class="panel-heading">
+                <h3 class="panel-title">API Keys</h3>
+            </div>
+            <div class="panel-body">
+                <div class="container-fluid">
+                    <div class="row">
+                        <div class="col-12">
+                            On this page you can manage API key for accessing FHIR Server
+                        </div>
+                    </div>
+                    <br clear="all"/>
+                    <div class="row">
+                        <table class="table">
+                            <thead class="thead-light">
+                            <tr class="d-flex">
+                                <th class="col-3" scope="col">Key</th>
+                                <th class="col-3" scope="col">Secret</th>
+                                <th class="col-1" scope="col">Status</th>
+                                <th class="col-2" scope="col">Created</th>
+                                <th class="col-1" scope="col">Expires</th>
+                                <th class="col-2" scope="col">Actions</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            <tr th:each="apiKey: ${apiKeys}" class="d-flex">
+                                <td class="col-3">
+                                    <span th:text="${apiKey.key}"></span>
+                                    <button type="button" title="Copy to clipboard" class="copy-to-clipboard btn btn-outline-secondary" th:onclick='copyToClipboard([[${apiKey.key}]])'>
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"
+                                             fill="currentColor" class="bi bi-clipboard" viewBox="0 0 16 16">
+                                            <path d="M4 1.5H3a2 2 0 0 0-2 2V14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V3.5a2 2 0 0 0-2-2h-1v1h1a1 1 0 0 1 1 1V14a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1h1v-1z"/>
+                                            <path d="M9.5 1a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-3a.5.5 0 0 1-.5-.5v-1a.5.5 0 0 1 .5-.5h3zm-3-1A1.5 1.5 0 0 0 5 1.5v1A1.5 1.5 0 0 0 6.5 4h3A1.5 1.5 0 0 0 11 2.5v-1A1.5 1.5 0 0 0 9.5 0h-3z"/>
+                                        </svg>
+                                    </button>
+                                </td>
+                                <td class="col-3">
+                                    <span th:text="${apiKey.secret}" style="display: none"></span> &nbsp;&nbsp;
+                                    <button type="button" class="copy-to-clipboard btn btn-outline-secondary" onclick="showSecret(this)">Show</button>&nbsp;
+                                    <button type="button" title="Copy to clipboard" class="btn btn-outline-secondary"
+                                            th:onclick='copyToClipboard([[${apiKey.secret}]])'>
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"
+                                             fill="currentColor" class="bi bi-clipboard" viewBox="0 0 16 16">
+                                            <path d="M4 1.5H3a2 2 0 0 0-2 2V14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V3.5a2 2 0 0 0-2-2h-1v1h1a1 1 0 0 1 1 1V14a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1h1v-1z"/>
+                                            <path d="M9.5 1a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-3a.5.5 0 0 1-.5-.5v-1a.5.5 0 0 1 .5-.5h3zm-3-1A1.5 1.5 0 0 0 5 1.5v1A1.5 1.5 0 0 0 6.5 4h3A1.5 1.5 0 0 0 11 2.5v-1A1.5 1.5 0 0 0 9.5 0h-3z"/>
+                                        </svg>
+                                    </button>
+                                </td>
+                                <td class="col-1" th:text="${apiKey.status}"/>
+                                <td class="col-2" th:text="${apiKey.created}"/>
+                                <td class="col-1" th:text="${apiKey.expires}"/>
+                                <td class="col-2">
+
+                                    <input type="button" value="Revoke" class="btn btn-outline-primary"
+                                           th:onclick="revokeKey([[${apiKey.id}]])">
+                                    <input th:if="${#strings.equals(apiKey.status, 'ACTIVE')}" type="button" value="Disable" class="btn btn-outline-primary"
+                                           th:onclick="switchStatus([[${apiKey.id}]])">
+                                    <input th:if="${#strings.equals(apiKey.status,'DISABLED')}" type="button" value="Enable" class="btn btn-outline-primary"
+                                           th:onclick="switchStatus([[${apiKey.id}]])">
+                                </td>
+                            </tr>
+                            </tbody>
+                        </table>
+                        <div class="row">
+                            <div class="col-sm-3">
+                                <button type="button" class="btn btn-primary" data-whatever="@getbootstrap"
+                                        onclick="addApiKey()">Add Key
+                                </button>
+                            </div>
+                            <div class='col-sm-9'>
+                                <div class='input-group date' id='expireDate-datetime' data-date-format="YYYY-MM-DDTHH:mm:ss">
+                                <div class="input-group-prepend"><span class="input-group-text">Expire date</span></div>
+                                <input placeholder="(opt)" type='text' class="form-control" id="expireDate"/>
+                                <div class="input-group-append input-group-addon">
+                                    <span class="input-group-text"><i class="far fa-calendar-alt"></i></span>
+                                </div>
+                            </div>
+                            </div>
+                        </div>
+                    </div>
+                    <br clear="all"/>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div th:replace="tmpl-footer :: footer"></div>
+    <script type="text/javascript">
+        $(function () {
+            $('#expireDate-datetime').datetimepicker({
+                sideBySide: true,
+                keepInvalid: true,
+                format: 'YYYY-MM-DDTHH:mm:ssZ'
+            });
+        });
+    </script>
+</form>
+
+</body>
+</html>

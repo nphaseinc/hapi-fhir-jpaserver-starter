@@ -1,15 +1,21 @@
 package ca.uhn.fhir.jpa.starter;
 
+import ca.uhn.fhir.jpa.starter.custom.InternalAuthenticationProvider;
+import ca.uhn.fhir.jpa.starter.custom.InternalTokenClientFactory;
+import ca.uhn.fhir.jpa.starter.custom.apikey.ApiKeyService;
+import ca.uhn.fhir.jpa.starter.custom.apikey.ApiKeyServiceImpl;
 import ca.uhn.fhir.jpa.starter.custom.RCCAuthenticationProvider;
 import ca.uhn.fhir.to.FhirTesterMvcConfig;
 import ca.uhn.fhir.to.TesterConfig;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.domain.EntityScan;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
+import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -39,6 +45,8 @@ import java.util.Map;
 @Configuration
 @Import(FhirTesterMvcConfig.class)
 @ComponentScan(basePackages = "ca.uhn.fhir.jpa.starter.custom")
+@EnableJpaRepositories("ca.uhn.fhir.jpa.starter.custom")
+@EntityScan("ca.uhn.fhir.jpa.starter.custom.*")
 public class FhirTesterConfig {
 
 	/**
@@ -58,18 +66,25 @@ public class FhirTesterConfig {
   @Bean
   public TesterConfig testerConfig(AppProperties appProperties) {
     TesterConfig retVal = new TesterConfig();
-    appProperties.getTester().entrySet().stream().forEach(t -> {
+	 retVal.setClientFactory(new InternalTokenClientFactory());
+    appProperties.getTester().entrySet().forEach(t -> {
       retVal
         .addServer()
         .withId(t.getKey())
         .withFhirVersion(t.getValue().getFhir_version())
         .withBaseUrl(t.getValue().getServer_address())
-        .withName(t.getValue().getName());
+        .withName(t.getValue().getName())
+        .allowsApiKey();
       retVal.setRefuseToFetchThirdPartyUrls(
         t.getValue().getRefuse_to_fetch_third_party_urls());
 
     });
     return retVal;
+  }
+
+  @Bean
+  ApiKeyService apiKeyService() {
+	  return new ApiKeyServiceImpl();
   }
 
 	@Configuration
@@ -79,11 +94,13 @@ public class FhirTesterConfig {
 	  @Value("${server.servlet.context-path}")
 	  String contextPath;
 		@Autowired
-		private RCCAuthenticationProvider authProvider;
+		private RCCAuthenticationProvider rccAuthProvider;
+		@Autowired
+		private InternalAuthenticationProvider internalProvider;
 
 		@Override
 		protected void configure(AuthenticationManagerBuilder auth) throws Exception {
-			auth.authenticationProvider(authProvider);
+			auth.authenticationProvider(internalProvider).authenticationProvider(rccAuthProvider);
 		}
 
 		@Override
@@ -137,6 +154,54 @@ public class FhirTesterConfig {
 				response.getOutputStream().println(new ObjectMapper().writeValueAsString(data));
 			};
 		}
+
+		/*@Configuration(proxyBeanMethods = false)
+		public class AuthorizationServerConfig {
+
+			@Bean
+			@Order(Ordered.HIGHEST_PRECEDENCE)
+			public SecurityFilterChain authorizationServerSecurityFilterChain(HttpSecurity http) throws Exception {
+				OAuth2AuthorizationServerConfiguration.applyDefaultSecurity(http);
+				return http.formLogin(Customizer.withDefaults()).build();
+			}
+
+			// @formatter:off
+			@Bean
+			public RegisteredClientRepository registeredClientRepository(JdbcTemplate jdbcTemplate) {
+				RegisteredClient registeredClient = RegisteredClient.withId(UUID.randomUUID().toString())
+					.clientId("messaging-client")
+					.clientSecret("secret")
+					.clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_BASIC)
+					.authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
+					.authorizationGrantType(AuthorizationGrantType.REFRESH_TOKEN)
+					.authorizationGrantType(AuthorizationGrantType.CLIENT_CREDENTIALS)
+					.redirectUri("http://127.0.0.1:8080/login/oauth2/code/messaging-client-oidc")
+					.redirectUri("http://127.0.0.1:8080/authorized")
+					.scope(OidcScopes.OPENID)
+					.scope("message.read")
+					.scope("message.write")
+					.clientSettings(ClientSettings.builder().requireAuthorizationConsent(true).build())
+					.build();
+
+				// Save registered client in db as if in-memory
+				JdbcRegisteredClientRepository registeredClientRepository = new JdbcRegisteredClientRepository(jdbcTemplate);
+				registeredClientRepository.save(registeredClient);
+
+				return registeredClientRepository;
+			}
+			// @formatter:on
+
+			@Bean
+			public OAuth2AuthorizationService authorizationService(JdbcTemplate jdbcTemplate, RegisteredClientRepository registeredClientRepository) {
+				return new JdbcOAuth2AuthorizationService(jdbcTemplate, registeredClientRepository);
+			}
+
+			@Bean
+			public OAuth2AuthorizationConsentService authorizationConsentService(JdbcTemplate jdbcTemplate, RegisteredClientRepository registeredClientRepository) {
+				return new JdbcOAuth2AuthorizationConsentService(jdbcTemplate, registeredClientRepository);
+			}
+		}*/
+
 	}
 
 }
