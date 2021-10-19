@@ -23,9 +23,11 @@ import ca.uhn.fhir.jpa.provider.SubscriptionTriggeringProvider;
 import ca.uhn.fhir.jpa.provider.TerminologyUploaderProvider;
 import ca.uhn.fhir.jpa.provider.dstu3.JpaConformanceProviderDstu3;
 import ca.uhn.fhir.jpa.search.DatabaseBackedPagingProvider;
+import ca.uhn.fhir.jpa.starter.custom.aggregation.common.DataAggregatorFactory;
+import ca.uhn.fhir.jpa.starter.custom.aggregation.controller.AggregationController;
+import ca.uhn.fhir.jpa.starter.custom.apikey.ApiKeyController;
 import ca.uhn.fhir.jpa.starter.custom.apikey.ApiKeyService;
-import ca.uhn.fhir.jpa.starter.custom.ServerSecurityInterceptor;
-import ca.uhn.fhir.jpa.starter.custom.ServerAdditionalEndpoints;
+import ca.uhn.fhir.jpa.starter.custom.auth.ServerSecurityInterceptor;
 import ca.uhn.fhir.jpa.subscription.util.SubscriptionDebugLogInterceptor;
 import ca.uhn.fhir.mdm.provider.MdmProviderLoader;
 import ca.uhn.fhir.narrative.DefaultThymeleafNarrativeGenerator;
@@ -113,6 +115,8 @@ public class BaseJpaRestfulServer extends RestfulServer {
   private IValidationSupport myValidationSupport;
   @Autowired
   private ApiKeyService apiKeyService;
+  @Autowired
+  private DataAggregatorFactory aggregatorFactory;
 
   public BaseJpaRestfulServer() {
   }
@@ -155,7 +159,8 @@ public class BaseJpaRestfulServer extends RestfulServer {
      * provide further customization of your server's CapabilityStatement
      */
 
-	  registerProvider(new ServerAdditionalEndpoints(apiKeyService));
+	  registerProvider(new ApiKeyController(apiKeyService));
+	  registerProvider(new AggregationController(aggregatorFactory));
 	  FhirVersionEnum fhirVersion = fhirSystemDao.getContext().getVersion().getVersion();
     if (fhirVersion == FhirVersionEnum.DSTU2) {
 

@@ -1,10 +1,10 @@
 package ca.uhn.fhir.jpa.starter;
 
-import ca.uhn.fhir.jpa.starter.custom.InternalAuthenticationProvider;
-import ca.uhn.fhir.jpa.starter.custom.InternalTokenClientFactory;
+import ca.uhn.fhir.jpa.starter.custom.auth.InternalAuthenticationProvider;
+import ca.uhn.fhir.jpa.starter.custom.auth.InternalTokenClientFactory;
 import ca.uhn.fhir.jpa.starter.custom.apikey.ApiKeyService;
 import ca.uhn.fhir.jpa.starter.custom.apikey.ApiKeyServiceImpl;
-import ca.uhn.fhir.jpa.starter.custom.RCCAuthenticationProvider;
+import ca.uhn.fhir.jpa.starter.custom.auth.RCCAuthenticationProvider;
 import ca.uhn.fhir.to.FhirTesterMvcConfig;
 import ca.uhn.fhir.to.TesterConfig;
 import com.fasterxml.jackson.databind.ObjectMapper;

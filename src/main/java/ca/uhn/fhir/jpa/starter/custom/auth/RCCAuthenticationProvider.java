@@ -1,4 +1,4 @@
-package ca.uhn.fhir.jpa.starter.custom;
+package ca.uhn.fhir.jpa.starter.custom.auth;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;

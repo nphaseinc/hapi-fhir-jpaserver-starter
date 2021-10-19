@@ -1,4 +1,4 @@
-package ca.uhn.fhir.jpa.starter.custom;
+package ca.uhn.fhir.jpa.starter.custom.auth;
 
 import ca.uhn.fhir.context.FhirContext;
 import ca.uhn.fhir.rest.client.api.IGenericClient;
@@ -12,7 +12,7 @@ public class InternalTokenClientFactory implements ITestingUiClientFactory {
 	@Override
 	public IGenericClient newClient(FhirContext theFhirContext, HttpServletRequest theRequest, String theServerBaseUrl) {
 		IGenericClient client = theFhirContext.newRestfulGenericClient(theServerBaseUrl);
-		client.registerInterceptor(new BearerTokenAuthInterceptor(ServerAdditionalEndpoints.INTERNAL_TOKEN));
+		client.registerInterceptor(new BearerTokenAuthInterceptor(ServerSecurityInterceptor.INTERNAL_TOKEN));
 		return client;
 	}
 }

@@ -1,4 +1,4 @@
-package ca.uhn.fhir.jpa.starter.custom;
+package ca.uhn.fhir.jpa.starter.custom.auth;
 
 import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;

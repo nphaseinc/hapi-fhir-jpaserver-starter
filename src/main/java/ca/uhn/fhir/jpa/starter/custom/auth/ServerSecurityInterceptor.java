@@ -1,4 +1,4 @@
-package ca.uhn.fhir.jpa.starter.custom;
+package ca.uhn.fhir.jpa.starter.custom.auth;
 
 import ca.uhn.fhir.interceptor.api.Hook;
 import ca.uhn.fhir.interceptor.api.Interceptor;
@@ -12,6 +12,7 @@ import javax.servlet.http.HttpServletResponse;
 
 @Interceptor
 public class ServerSecurityInterceptor {
+	public static final String INTERNAL_TOKEN = "_INTERNAL_TOKEN_";
 
 	private ApiKeyService apiKeyService;
 
@@ -44,7 +45,7 @@ public class ServerSecurityInterceptor {
 			return false;
 		}
 		String token = authHeader.substring("Bearer ".length());
-		if (ServerAdditionalEndpoints.INTERNAL_TOKEN.equals(token)) return true;
+		if (INTERNAL_TOKEN.equals(token)) return true;
 		//todo validate oauth
 		return true;
 	}
