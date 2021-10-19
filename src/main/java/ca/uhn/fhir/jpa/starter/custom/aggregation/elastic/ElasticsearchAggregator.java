@@ -16,6 +16,8 @@ import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.terms.ParsedStringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.List;
 import java.util.Map;
@@ -25,6 +27,8 @@ import java.util.stream.Collectors;
 import static ca.uhn.fhir.jpa.starter.custom.aggregation.elastic.Indexer.CONDITION_INDEX;
 
 public class ElasticsearchAggregator implements StoppableDataAggregator {
+	private static final Logger LOG =  LoggerFactory.getLogger(ElasticsearchAggregator.class);
+
 	private final RestHighLevelClient client;
 	private Map<String, Disease> LATEST = new ConcurrentHashMap<>();
 	private volatile boolean dataUpdating = false;
@@ -58,7 +62,9 @@ public class ElasticsearchAggregator implements StoppableDataAggregator {
 				.map(this::toDisease)
 				.collect(Collectors.toMap(Disease::getCode, d -> d)), sumOfOtherDocCounts > 0);
 		} catch (Exception e) {
-			throw new AggregationException("Unable to aggregate data in Elastcisearch", e);
+			String message = "Unable to aggregate data in Elasticsearch";
+			LOG.error(message, e);
+			throw new AggregationException(message, e);
 		} finally {
 			dataUpdating = false;
 			stop = false;
@@ -100,17 +106,16 @@ public class ElasticsearchAggregator implements StoppableDataAggregator {
 			SearchRequest searchRequest = new SearchRequest(CONDITION_INDEX).source(
 				new SearchSourceBuilder()
 					.size(1)
-					.fetchField("display")
-					.fetchField("system")
-					.query(QueryBuilders.termQuery("code", code))
+					.query(QueryBuilders.termQuery("code.keyword", code))
 			);
 			SearchResponse search = client.search(searchRequest, RequestOptions.DEFAULT);
 			SearchHits hits = search.getHits();
 			SearchHit at = hits.getAt(0);
-			system = at.field("system").getValue();
-			display = at.field("display").getValue();
-		} catch (Exception ignore) {
-			System.err.println(ignore.getMessage());
+			Map<String, Object> map = at.getSourceAsMap();
+			system = (String) map.get("system");
+			display = (String) map.get("display");
+		} catch (Exception e) {
+			LOG.warn("Unable to retrieve Disease data from CONDITION_INDEX", e);
 		}
 		Disease disease = new Disease(system, code, display);
 		disease.setPersonCount(bucket.getDocCount());

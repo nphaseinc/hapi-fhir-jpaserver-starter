@@ -1,15 +1,15 @@
 package ca.uhn.fhir.jpa.starter.custom.aggregation.elastic;
 
 import ca.uhn.fhir.jpa.entity.ResourceSearchView;
-import ca.uhn.fhir.jpa.starter.custom.aggregation.util.GZIPCompression;
 import ca.uhn.fhir.jpa.starter.custom.aggregation.dao.IResourceSearchViewExtDao;
 import ca.uhn.fhir.jpa.starter.custom.aggregation.dto.ElasticCondition;
 import ca.uhn.fhir.jpa.starter.custom.aggregation.exceptions.AggregationException;
+import ca.uhn.fhir.jpa.starter.custom.aggregation.util.GZIPCompression;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.RequestOptions;
@@ -21,6 +21,8 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortOrder;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -35,6 +37,7 @@ import java.util.Map;
 public class Indexer {
 
 	public static final String CONDITION_INDEX = "condition_index";
+	private static final Logger LOG = LoggerFactory.getLogger(Indexer.class);
 	private final IResourceSearchViewExtDao extDao;
 	private final RestHighLevelClient client;
 
@@ -45,18 +48,26 @@ public class Indexer {
 
 	@Transactional
 	public void doIndex() {
-		if (!createIndex(CONDITION_INDEX, null)) throw new AggregationException("Unable to create index in Elasticsearch");
+		if (!createIndex(CONDITION_INDEX, null))
+			throw new AggregationException("Unable to create index in Elasticsearch");
 		Long latestPid = getLatest();
-		Pageable pageable = Pageable.ofSize(100);
+		Pageable pageable = Pageable.ofSize(1000);
 		Collection<ResourceSearchView> views;
-		System.err.println("STARTED::doIndex");
+		LOG.info("STARTED::doIndex");
+		long processed = 0;
 		do {
 			views = extDao.findByResourceId(latestPid, "Condition", pageable);
-			views.forEach(this::indexInElastic);
-			pageable = pageable.next();
-			System.err.println("PROCESSED " + views.size());
+			if(!views.isEmpty()) {
+				BulkRequest bulkRequest = new BulkRequest();
+				views.forEach(v -> addToRequest(v, bulkRequest));
+				if (!indexInElastic(bulkRequest))
+					throw new AggregationException("Unable to add data to Elastic");
+				processed += views.size();
+				pageable = pageable.next();
+				LOG.info("PROCESSED " + processed);
+			}
 		} while (!views.isEmpty());
-		System.err.println("FINISH: doIndex");
+		LOG.info("FINISH: doIndex");
 	}
 
 	private Long getLatest() {
@@ -72,29 +83,34 @@ public class Indexer {
 			String id = search.getHits().getAt(0).getId();
 			return Long.getLong(id);
 		} catch (Exception e) {
-			System.err.println(e.getMessage());
+			LOG.warn("Unable to get get latest row ID for CONDITION_INDEX", e);
 		}
 		return 0L;
 	}
 
-	private boolean indexInElastic(ResourceSearchView view) {
-		IndexResponse indexResponse;
+	private void addToRequest(ResourceSearchView view, BulkRequest bulkRequest) {
+		IndexRequest request = new IndexRequest(CONDITION_INDEX);
+		request.id(String.valueOf(view.getId()));
+		request.source(map(view), XContentType.JSON);
+		bulkRequest.add(request);
+	}
+
+	private boolean indexInElastic(BulkRequest bulkRequest) {
+		BulkResponse response;
 		try {
-			IndexRequest request = new IndexRequest(CONDITION_INDEX);
-			request.id(String.valueOf(view.getId()));
-			request.source(map(view), XContentType.JSON);
-			indexResponse = client.index(request, RequestOptions.DEFAULT);
+			response = client.bulk(bulkRequest, RequestOptions.DEFAULT);
 		} catch (Exception e) {
 			return false;
 		}
-		return (indexResponse.getResult() == DocWriteResponse.Result.CREATED) || (indexResponse.getResult() == DocWriteResponse.Result.UPDATED);
+		return response != null && !response.hasFailures();
 	}
 
 	private byte[] map(ResourceSearchView view) {
 		try {
 			String decompress = GZIPCompression.decompress(view.getResource());
 			ObjectMapper mapper = new ObjectMapper();
-			TypeReference<HashMap<String,Object>> typeRef = new TypeReference<>() {};
+			TypeReference<HashMap<String, Object>> typeRef = new TypeReference<>() {
+			};
 			HashMap<String, Object> value = mapper.readValue(decompress, typeRef);
 			ElasticCondition condition = createCondition(value);
 			return mapper.writeValueAsBytes(condition);
