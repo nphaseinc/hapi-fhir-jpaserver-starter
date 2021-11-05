@@ -16,7 +16,7 @@ public class ElasticSearchClientFactory {
 	}
 
 	public RestHighLevelClient client() {
-		if (!EnvironmentHelper.isElasticsearchEnabled(env)) {
+		if (!EnvironmentHelper.isElasticsearchAggregationEnabled(env)) {
 			throw new IllegalStateException("Elasticsearch is switched off in config");
 		}
 		String url = EnvironmentHelper.getElasticsearchServerUrl(env);

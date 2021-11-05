@@ -132,6 +132,14 @@ public class EnvironmentHelper {
 		}
 	}
 
+	public static Boolean isElasticsearchAggregationEnabled(ConfigurableEnvironment environment) {
+		if (environment.getProperty("elasticsearch.enabled_aggregation", Boolean.class) != null) {
+			return environment.getProperty("elasticsearch.enabled_aggregation", Boolean.class);
+		} else {
+			return false;
+		}
+	}
+
 	public static Map<String, Object> getPropertiesStartingWith(ConfigurableEnvironment aEnv,
 																					String aKeyPrefix) {
 		Map<String, Object> result = new HashMap<>();
